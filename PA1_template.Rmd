@@ -1,25 +1,87 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "R Markdown Assignment"
+output: html_document
 ---
 
+### Importing Packages
+We begin by importing the "dplyr" package
 
-## Loading and preprocessing the data
+```{r echo=TRUE}
+#install.packages("dplyr")
+library("dplyr")
+```
+
+### Data Pre-processing
+The only pre-processing we are going to perform after loading is just dropping all rows with an "NA" value in them.
+
+```{r echo=TRUE}
+act_data_original <- read.csv("activity.csv")
+act_data <- na.omit(act_data_original)
+```
+
+### Total Number of Steps Taken per Day
+We will find the steps taken every day by selecting only the date and steps columns, grouping them by date, and then adding a new column with the sum of steps for each day.  With this dataframe we can then plot the results, determine the mean daily step count, and determine the median daily step count.  With these results we will depict them as a histogram and we will print out the mean and median numbers of steps taken per day
+```{r echo=TRUE}
+## Get sum of steps per day
+daily_steps <- act_data %>% select(date, steps) %>% group_by(date) %>% summarise(daily_step_total = sum(steps))
+## Calculate mean and median for frame
+mean_daily_step_total <- mean(daily_steps$daily_step_total)
+median_daily_step_total <- median(daily_steps$daily_step_total)
+hist(daily_steps$daily_step_total,main = "Histogram of Daily Steps",xlab = "Daily Step Totals")
+cat("Mean daily step count: ",mean_daily_step_total,"\n")
+cat("Median daily step count: ",median_daily_step_total)
+```
 
 
+### Average Daily Activity Pattern
+In this section we will look across all of our days of data for the average number of steps taken for each 5 minute interval.  We will take a similar approach as we took when finding the total number of steps per day, but we will group by interval instead of day.  Additionally, we will use the mean function in our summarize statement instead of the sum function.  We will display the results as a line plot and we will print out the interval with the highest average steps.
+```{r echo=TRUE}
+## Get sum of steps by 5 minute interval
+tod_steps <- act_data %>% select(interval, steps) %>% group_by(interval) %>% summarise(average_step_total = mean(steps))
+mean_tod_steps <- mean(tod_steps$average_step_total)
+## Display as time series plot
+plot(tod_steps,type="l", main = "Average Steps by Time of Day", xlab = "Time of Day", ylab="Average Daily Steps")
+cat("Interval with highest average steps: ", tod_steps$interval[which.max(tod_steps$average_step_total)])
+```
 
-## What is mean total number of steps taken per day?
+### Imputing Missing Values
+Just taking a simple approach to imputing missing values.  Replacing missing values with the interval average of the per interval steps averaged across all days.
+```{r echo=TRUE}
+## Report and replace the na values
+num_na <- sum(is.na(act_data_original$steps))
+cat("There are ", num_na," missing values in the dataset.\n")
+imp_act_data <- act_data_original %>% mutate(steps_new = ifelse(is.na(act_data_original$steps), mean_tod_steps, act_data_original$steps)) %>% select(steps_new, date, interval)
+
+## Get sum of steps per day
+daily_steps_imp <- imp_act_data %>% select(date, steps_new) %>% group_by(date) %>% summarise(daily_step_total = sum(steps_new))
+## Calculate mean and median for frame
+mean_daily_step_total_imp <- mean(daily_steps_imp$daily_step_total)
+median_daily_step_total_imp <- median(daily_steps_imp$daily_step_total)
+hist(daily_steps_imp$daily_step_total,main = "Histogram of Daily Steps w/ Imputed Missing Values",xlab = "Daily Step Totals")
+cat("Mean daily step count with imputed missing values: ",mean_daily_step_total_imp,"\n")
+cat("Median daily step count with imputed missing values: ",median_daily_step_total_imp)
+
+```
+
+The mean and median with this imputed dataset now match the mean value from the data where "NA" values were dropped.  Imputing the values the way we did adds many values which are at the mean of the rest of the data, lowering the standard deviation of the dataset.
 
 
+### Differences in Weekend and Weekday Activity
+Making a new column with the day of week and then a new column which says whether the day is a 'weekday' or 'weekend'
+```{r echo = TRUE}
+## Start off by making lists for weekdays and weekends
+weekday_list <- c("Monday", "Tuesday", "Wednesday", "Thursday")
+## Use 'mutate' to add new columns denoting weekends or weekdays
+imp_act_data <- imp_act_data %>% 
+  mutate(dow = weekdays(as.Date(imp_act_data$date, format="%Y-%m-%d"))) %>%
+  mutate(weekday = ifelse(dow %in% weekday_list, "weekday", "weekend"))
+## Depict results in a graphic
+weekday_tod_steps <- imp_act_data %>% select(interval, steps_new, weekday) %>% filter(weekday == "weekday") %>% 
+  group_by(interval) %>% summarise(average_step_total = mean(steps_new))
+weekend_tod_steps <- imp_act_data %>% select(interval, steps_new, weekday) %>% filter(weekday == "weekend") %>%
+  group_by(interval) %>% summarise(average_step_total = mean(steps_new))
+par(mfrow=c(2,1))
+plot(weekday_tod_steps,type="l", main = "Weekday Average Steps by Time of Day", xlab = "Time of Day", ylab="Average Daily Steps")
+plot(weekend_tod_steps,type="l", main = "Weekend Average Steps by Time of Day", xlab = "Time of Day", ylab="Average Daily Steps")
 
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
-
-
-
-## Are there differences in activity patterns between weekdays and weekends?
+```
